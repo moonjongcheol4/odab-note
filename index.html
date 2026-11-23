@@ -63,6 +63,10 @@ header .who{font-size:14px;color:var(--sub)}
 .qcard img{width:100%;height:170px;object-fit:cover;object-position:top;display:block;border-radius:4px;border:1px solid #eee}
 .bottombar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;z-index:20}
 .bottombar .info{flex:1;font-size:14px}
+.coltabs{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+.coltabs button{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:6px 12px;font:inherit;font-size:13.5px;cursor:pointer}
+.coltabs button.on{border-color:var(--accent);background:var(--soft);color:var(--accent);font-weight:700}
+.coltabs button .n{display:inline-block;min-width:18px;margin-left:4px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px}
 
 /* 노트 화면 */
 .notebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;max-width:1140px;margin:14px auto}
@@ -155,6 +159,8 @@ canvas.ink{cursor:crosshair}
     <div class="list" id="workList"></div>
     <div class="sec-title">📝 새로 시작할 시험지</div>
     <div class="list" id="examList"></div>
+    <div class="sec-title">📚 모음 노트 <span class="hint" style="font-weight:400">— 여러 시험지에서 비슷한 문항을 골라 하나로 묶어요</span></div>
+    <button class="item" id="btnNewCol"><span class="grow"><span class="t">＋ 새 모음 노트 만들기</span><br><span class="s">예) 에너지 전환 유형, 그래프 해석 문제</span></span><span>›</span></button>
     <div class="sec-title">💾 다른 기기에서 저장한 파일</div>
     <label class="item"><span class="grow"><span class="t">작업 파일 불러오기 (.json)</span><br><span class="s">「작업 파일 저장」으로 받아 둔 파일을 열어요</span></span><input type="file" id="loadWork" accept=".json" hidden></label>
   </div>
@@ -164,7 +170,7 @@ canvas.ink{cursor:crosshair}
 <section class="screen" id="scrPick">
   <div class="pickwrap">
     <div class="row2" style="justify-content:space-between;margin-bottom:6px">
-      <div><div style="font-size:19px;font-weight:700" id="pickTitle"></div><div class="hint">틀린 문항을 모두 눌러서 체크하세요.</div></div>
+      <div><div style="font-size:19px;font-weight:700" id="pickTitle"></div><div class="hint" id="pickHint">틀린 문항을 모두 눌러서 체크하세요.</div></div>
       <button class="btn" id="btnPickBack">← 시험지 다시 고르기</button>
     </div>
     <div class="card" style="padding:14px;margin:12px 0">
@@ -175,6 +181,8 @@ canvas.ink{cursor:crosshair}
       </div>
       <p class="hint" style="margin:8px 0 0">종이에 출력해서 손으로 쓰고 싶으면 다음 화면에서 「손글씨용 빈칸 PDF」를 받으세요. 설정은 다음 화면에서도 바꿀 수 있어요.</p>
     </div>
+    <div id="colTabs" class="coltabs" style="display:none"></div>
+    <div id="colPicked" class="hint" style="display:none;margin:-4px 0 10px"></div>
     <div class="qgrid" id="qgrid"></div>
   </div>
   <div class="bottombar"><div class="info" id="pickInfo"></div><button class="btn primary big" id="btnPickDone">완료 → 오답노트 보기</button></div>
@@ -230,7 +238,8 @@ canvas.ink{cursor:crosshair}
 <div class="modal" id="nameModal"><div class="card mbox">
   <h2 id="nmTitle">시험 이름 정하기</h2>
   <p class="d" id="nmDesc">학생들 화면에는 여기서 정한 이름 그대로 보여요.</p>
-  <div class="field"><label>시험 이름</label><input id="nmInput" maxlength="60" placeholder="예) 3학년 과학 2학기 기말고사"></div>
+  <div class="field"><label>시험 이름</label><input id="nmInput" maxlength="40" placeholder="예) 2023학년도 3월 고1 학력평가"></div>
+  <div class="field"><label>짧은 이름 (모음 노트에서 문항 번호 옆에 붙어요, 10자 이내)</label><input id="nmShort" maxlength="10" placeholder="예) 23 3월 모의"></div>
   <div class="hint" style="margin-bottom:6px">학생 화면 미리 보기</div>
   <div class="item" style="cursor:default;pointer-events:none"><span class="grow"><span class="t" id="nmPrevT"></span><br><span class="s" id="nmPrevS"></span></span><span>›</span></div>
   <div class="err" id="nmErr"></div>
@@ -247,6 +256,13 @@ canvas.ink{cursor:crosshair}
     <div class="row2"><button class="btn" id="lmCopy">📋 복사</button><a class="btn primary" id="lmGo" href="#" style="text-decoration:none">이 링크로 이동</a></div>
   </div>
   <div class="row2" style="margin-top:12px"><button class="btn" id="lmClose">닫기</button><button class="btn primary" id="lmMake" style="flex:1">링크 만들기</button></div>
+</div></div>
+<div class="modal" id="colModal"><div class="card mbox">
+  <h2>📚 새 모음 노트</h2>
+  <p class="d">모음 노트 이름을 정하세요. PDF 제목으로도 쓰여요.</p>
+  <div class="field"><label>모음 노트 이름</label><input id="cmIn" maxlength="30" placeholder="예) 에너지 전환 유형"></div>
+  <div class="err" id="cmErr"></div>
+  <div class="row2"><button class="btn" id="cmCancel">취소</button><button class="btn primary" id="cmOk" style="flex:1">만들고 문항 고르기</button></div>
 </div></div>
 <div class="modal" id="busy"><div class="card mbox" style="text-align:center"><div style="font-size:28px">⏳</div><div id="busyMsg">잠시만요…</div></div></div>
 <div id="toast"></div>
@@ -342,17 +358,38 @@ $('#btnLogin').onclick=async()=>{
 };
 $('#inName').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#btnLogin').click(); });
 
+/* ---------- 시험 이름: "긴 이름‖짧은 이름" 으로 저장해요 ---------- */
+const SEP='‖';
+const splitTitle=t=>{ const [a,b]=String(t||'').split(SEP); return {title:a||'', short:(b||'').trim()}; };
+const disp=e=>splitTitle(e.title).title;
+const shortOf=e=>splitTitle(e.title).short || disp(e).slice(0,10);
+
+/* ---------- 시험지·작업 보관함 (여러 시험지를 동시에 다뤄요) ---------- */
+const EX={};    // 시험지 id → 시험지
+const WK={};    // 시험지 id → 그 시험지의 오답노트 작업(문항별로 쓴 내용이 여기 저장돼요)
+const dirty=new Set();
+let EXLIST=[];
+async function getExam(id){ if(!EX[id]){ const e=await Exams.get(id); if(e) EX[id]=e; } return EX[id]; }
+async function getWK(eid){
+  if(!WK[eid]){ const e=EX[eid]; const key=me.sid+'|'+eid;
+    WK[eid]=await Store.get('works',key) || {key,sid:me.sid,name:me.name,examId:eid,examTitle:e?disp(e):'',sel:{},notes:{},layout:'portrait',write:'type',lines:1,updated:Date.now()}; }
+  return WK[eid];
+}
+const isCol=()=>W&&W.type==='col';
+function noteTitle(){ return isCol()? W.colName : disp(exam); }
+
 /* ---------- 2. 시험지 · 임시저장 ---------- */
 async function showExamScreen(){
-  let exams=[]; try{ exams=await withBusy('시험지 목록을 불러오는 중…',()=>Exams.list()); }catch(e){}
-  const works=(await Store.all('works')||[]).filter(w=>w.sid===me.sid).sort((a,b)=>b.updated-a.updated);
+  try{ EXLIST=await withBusy('시험지 목록을 불러오는 중…',()=>Exams.list()); }catch(e){ EXLIST=[]; }
+  for(const k in WK) delete WK[k];
+  const works=(await Store.all('works')||[]).filter(w=>w.sid===me.sid && (w.type==='col' || Object.values(w.sel||{}).some(Boolean))).sort((a,b)=>b.updated-a.updated);
   $('#workList').innerHTML = works.length ? works.map(w=>`
-    <div class="item" data-work="${esc(w.key)}"><span class="grow"><span class="t">${esc(w.examTitle)}</span><br>
-      <span class="s">틀린 문항 ${Object.values(w.sel).filter(Boolean).length}개 · 마지막 저장 ${fmtDate(w.updated)}</span></span>
+    <div class="item" data-work="${esc(w.key)}"><span class="grow"><span class="t">${w.type==='col'?'📚 '+esc(w.colName):esc(w.examTitle)}</span><br>
+      <span class="s">${w.type==='col'?`모음 노트 · ${w.items.length}문항`:`틀린 문항 ${Object.values(w.sel).filter(Boolean).length}개`} · 마지막 저장 ${fmtDate(w.updated)}</span></span>
       <button class="btn danger" data-delwork="${esc(w.key)}">삭제</button><span>›</span></div>`).join('')
     : `<div class="hint" style="padding:4px 2px">임시저장된 오답노트가 없어요.</div>`;
-  $('#examList').innerHTML = exams.map(e=>`
-    <div class="item" data-exam="${esc(e.id)}"><span class="grow"><span class="t">${esc(e.title)}</span><br>
+  $('#examList').innerHTML = EXLIST.map(e=>`
+    <div class="item" data-exam="${esc(e.id)}"><span class="grow"><span class="t">${esc(splitTitle(e.title).title)}</span><br>
       <span class="s">${e.count}문항 (${e.first}~${e.last}번)</span></span><span>›</span></div>`).join('') || `<div class="hint" style="padding:4px 2px">아직 선생님이 올린 시험지가 없어요.</div>`;
   go('scrExam');
 }
@@ -360,22 +397,44 @@ $('#workList').onclick=async e=>{
   const d=e.target.closest('[data-delwork]');
   if(d){ e.stopPropagation(); if(d.dataset.sure){ await Store.del('works',d.dataset.delwork); showExamScreen(); } else { d.dataset.sure=1; d.textContent='정말 삭제?'; } return; }
   const it=e.target.closest('[data-work]'); if(!it) return;
-  const w=await Store.get('works',it.dataset.work); let ex=null; try{ ex=await withBusy('시험지를 불러오는 중…',()=>Exams.get(w.examId)); }catch(e){ return; }
+  const w=await Store.get('works',it.dataset.work);
+  if(w.type==='col'){ W=w; try{ await withBusy('시험지를 불러오는 중…',()=>prepareCol()); }catch(_){ return; } openNote(); return; }
+  let ex=null; try{ ex=await withBusy('시험지를 불러오는 중…',()=>getExam(w.examId)); }catch(e){ return; }
   if(!ex){ toast('이 시험지는 선생님이 지웠어요'); return; }
-  exam=ex; W=w; openNote();
+  exam=ex; WK[ex.id]=w; W=w; openNote();
 };
 $('#examList').onclick=async e=>{
   const it=e.target.closest('[data-exam]'); if(!it) return;
-  try{ exam=await withBusy('시험지를 불러오는 중…',()=>Exams.get(it.dataset.exam)); }catch(e){ return; }
+  try{ exam=await withBusy('시험지를 불러오는 중…',()=>getExam(it.dataset.exam)); }catch(e){ return; }
   if(!exam){ toast('시험지를 찾지 못했어요'); return; }
-  const key=me.sid+'|'+exam.id;
-  W=await Store.get('works',key) || {key,sid:me.sid,name:me.name,examId:exam.id,examTitle:exam.title,sel:{},notes:{},layout:'portrait',write:'type',lines:1,updated:Date.now()};
+  W=await getWK(exam.id); openPick();
+};
+// 모음 노트에 담긴 시험지와 작업을 모두 불러오기
+async function prepareCol(){
+  const ids=[...new Set(W.items.map(r=>r.examId))];
+  for(const id of ids){ try{ await getExam(id); }catch(_){} await getWK(id); }
+  const miss=W.items.filter(r=>!EX[r.examId]); if(miss.length){ W.items=W.items.filter(r=>EX[r.examId]); toast('선생님이 지운 시험지의 문항 '+miss.length+'개는 빠졌어요'); }
+}
+/* 새 모음 노트 */
+$('#btnNewCol').onclick=()=>{ $('#cmIn').value=''; $('#cmErr').textContent=''; $('#colModal').classList.add('on'); setTimeout(()=>$('#cmIn').focus(),50); };
+$('#cmCancel').onclick=()=>$('#colModal').classList.remove('on');
+$('#cmIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#cmOk').click(); });
+$('#cmOk').onclick=async()=>{
+  const name=$('#cmIn').value.trim(); if(!name){ $('#cmErr').textContent='이름을 입력하세요'; return; }
+  if(!EXLIST.length){ $('#cmErr').textContent='아직 선생님이 올린 시험지가 없어요'; return; }
+  $('#colModal').classList.remove('on');
+  W={key:me.sid+'|col'+Date.now(),type:'col',sid:me.sid,name:me.name,colName:name,items:[],layout:'portrait',write:'type',lines:1,updated:Date.now()};
+  try{ exam=await withBusy('시험지를 불러오는 중…',()=>getExam(EXLIST[0].id)); }catch(_){ return; }
   openPick();
 };
 $('#loadWork').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value='';
-  try{ const d=JSON.parse(await f.text()); if(d.type!=='odab-work') throw 0;
-    exam=d.exam; W=Object.assign(d.work,{sid:me.sid,name:me.name,key:me.sid+'|'+d.exam.id}); await saveWork(true); openNote(); toast('작업을 불러왔어요');
+  try{ const d=JSON.parse(await f.text());
+    if(d.type==='odab-work'){ exam=d.exam; EX[exam.id]=exam; W=Object.assign(d.work,{sid:me.sid,name:me.name,key:me.sid+'|'+d.exam.id}); WK[exam.id]=W; dirty.add(exam.id); }
+    else if(d.type==='odab-col'){ d.exams.forEach(x=>EX[x.id]=x); d.works.forEach(w=>{ Object.assign(w,{sid:me.sid,name:me.name,key:me.sid+'|'+w.examId}); WK[w.examId]=w; dirty.add(w.examId); });
+      W=Object.assign(d.col,{sid:me.sid,name:me.name}); }
+    else throw 0;
+    await saveWork(true); openNote(); toast('작업을 불러왔어요');
   }catch(_){ toast('오답노트 작업 파일이 아니에요'); }
 };
 
@@ -386,20 +445,41 @@ document.addEventListener('click',e=>{
   const k=b.closest('.seg').dataset.opt; W[k]= k==='lines'? +b.dataset.v : b.dataset.v;
   syncSegs(); saveWork(true); if($('#scrNote').classList.contains('on')) renderPages();
 });
+const picked=no=> isCol()? W.items.some(r=>r.examId===exam.id && String(r.no)===String(no)) : !!W.sel[no];
 function openPick(){
-  $('#pickTitle').textContent=exam.title; syncSegs();
-  $('#qgrid').innerHTML=exam.items.map(it=>`<div class="qcard ${W.sel[it.no]?'on':''}" data-no="${it.no}"><div class="no"><span class="cb">✔</span>${it.no}번</div><img src="${it.src}" alt=""></div>`).join('');
+  syncSegs();
+  const col=isCol();
+  $('#pickTitle').textContent= col? '📚 '+W.colName : disp(exam);
+  $('#pickHint').textContent= col? '위에서 시험지를 바꿔 가며 모음 노트에 넣을 문항을 눌러 담으세요.' : '틀린 문항을 모두 눌러서 체크하세요.';
+  $('#btnPickBack').textContent= col? '← 처음 화면으로' : '← 시험지 다시 고르기';
+  $('#colTabs').style.display=$('#colPicked').style.display= col?'':'none';
+  if(col) renderColTabs();
+  $('#qgrid').innerHTML=exam.items.map(it=>`<div class="qcard ${picked(it.no)?'on':''}" data-no="${it.no}"><div class="no"><span class="cb">✔</span>${it.no}번</div><img src="${it.src}" alt=""></div>`).join('');
   pickInfo(); go('scrPick');
 }
-function pickInfo(){ const n=Object.values(W.sel).filter(Boolean).length; $('#pickInfo').innerHTML=`틀린 문항 <b style="color:var(--red)">${n}개</b> 선택`; $('#btnPickDone').disabled=!n; }
-$('#qgrid').onclick=e=>{ const c=e.target.closest('.qcard'); if(!c) return; const no=c.dataset.no; W.sel[no]=!W.sel[no]; c.classList.toggle('on',W.sel[no]); pickInfo(); saveWork(true); };
+function renderColTabs(){
+  $('#colTabs').innerHTML=EXLIST.map(e=>{ const n=W.items.filter(r=>r.examId===e.id).length;
+    return `<button data-tab="${esc(e.id)}" class="${e.id===exam.id?'on':''}">${esc(splitTitle(e.title).short||splitTitle(e.title).title)}${n?`<span class="n">${n}</span>`:''}</button>`; }).join('');
+  $('#colPicked').innerHTML = W.items.length ? '담은 문항: '+W.items.map(r=>{ const e=EX[r.examId]; return esc((e?shortOf(e):'')+' '+r.no+'번'); }).join(', ') : '아직 담은 문항이 없어요.';
+}
+$('#colTabs').onclick=async e=>{ const b=e.target.closest('[data-tab]'); if(!b) return;
+  try{ exam=await withBusy('시험지를 불러오는 중…',()=>getExam(b.dataset.tab)); }catch(_){ return; } openPick(); };
+function pickInfo(){ const n= isCol()? W.items.length : Object.values(W.sel).filter(Boolean).length;
+  $('#pickInfo').innerHTML= isCol()? `모음 노트에 <b style="color:var(--red)">${n}문항</b> 담음` : `틀린 문항 <b style="color:var(--red)">${n}개</b> 선택`; $('#btnPickDone').disabled=!n; }
+$('#qgrid').onclick=e=>{ const c=e.target.closest('.qcard'); if(!c) return; const no=c.dataset.no;
+  if(isCol()){ const i=W.items.findIndex(r=>r.examId===exam.id&&String(r.no)===String(no)); if(i>=0) W.items.splice(i,1); else W.items.push({examId:exam.id,no:+no}); renderColTabs(); }
+  else W.sel[no]=!W.sel[no];
+  c.classList.toggle('on',picked(no)); pickInfo(); saveWork(true); };
 $('#btnPickBack').onclick=()=>showExamScreen();
-$('#btnPickDone').onclick=()=>openNote();
+$('#btnPickDone').onclick=async()=>{ if(isCol()){ try{ await withBusy('준비하는 중…',()=>prepareCol()); }catch(_){ return; } } openNote(); };
 
 /* ---------- 저장 ---------- */
 let saveT=null;
-async function saveWork(quiet){ if(!W) return; W.updated=Date.now(); W.examTitle=exam.title;
-  clearTimeout(saveT); saveT=setTimeout(async()=>{ try{ await Store.put('works',JSON.parse(JSON.stringify(W))); if(!quiet) toast('이 기기에 임시저장했어요'); }catch(e){ toast('임시저장에 실패했어요'); } }, quiet?600:0); }
+async function saveWork(quiet){ if(!W) return; W.updated=Date.now(); if(!isCol() && exam) W.examTitle=disp(exam);
+  clearTimeout(saveT); saveT=setTimeout(async()=>{ try{
+    const list=[W, ...[...dirty].map(id=>WK[id]).filter(w=>w&&w!==W)];
+    for(const w of list){ if(w!==W) w.updated=Date.now(); await Store.put('works',JSON.parse(JSON.stringify(w))); }
+    dirty.clear(); if(!quiet) toast('이 기기에 임시저장했어요'); }catch(e){ toast('임시저장에 실패했어요'); } }, quiet?600:0); }
 let dl=null;
 (async()=>{ try{ if(window.claude?.use) dl=await window.claude.use('downloads'); }catch(e){} })();
 async function saveFile(filename,blob){
@@ -428,8 +508,11 @@ document.addEventListener('click',e=>{
   const a=e.target.closest('.notebar [data-act]'); const t=e.target.closest('.notebar [data-tool]');
   if(t){ if(t.dataset.tool==='finger') finger=!finger; else tool=t.dataset.tool; syncTools(); return; }
   if(!a) return;
-  ({back:()=>openPick(), tmp:()=>saveWork(false), pdf:()=>makePDF('print'), blank:()=>makePDF('blank'),
-    json:()=>saveFile(fname(`${me.sid}${me.name}_${exam.title}_작업.json`), new Blob([JSON.stringify({type:'odab-work',exam,work:W})],{type:'application/json'}))})[a.dataset.act]();
+  ({back:async()=>{ if(isCol()){ try{ exam=await getExam(W.items[0]?.examId||EXLIST[0]?.id); }catch(_){} if(!EXLIST.length){ try{ EXLIST=await Exams.list(); }catch(_){} } } openPick(); }, tmp:()=>saveWork(false), pdf:()=>makePDF('print'), blank:()=>makePDF('blank'),
+    json:()=>{ const data= isCol()
+        ? {type:'odab-col',col:W,exams:[...new Set(W.items.map(r=>r.examId))].map(id=>EX[id]).filter(Boolean),works:[...new Set(W.items.map(r=>r.examId))].map(id=>WK[id]).filter(Boolean)}
+        : {type:'odab-work',exam,work:W};
+      saveFile(fname(`${me.sid}${me.name}_${noteTitle()}_작업.json`), new Blob([JSON.stringify(data)],{type:'application/json'})); }})[a.dataset.act]();
 });
 function syncTools(){ $$('.pentools').forEach(p=>p.classList.toggle('on',W.write==='pen'));
   $$('[data-tool]').forEach(b=>b.classList.toggle('on', b.dataset.tool==='finger'? finger : b.dataset.tool===tool)); }
@@ -437,11 +520,20 @@ function openNote(){ syncSegs(); go('scrNote'); renderPages(); }
 
 const DIM={portrait:{W:794,H:1123},landscape:{W:1123,H:794}};
 const PAD_X=36,PAD_Y=34,HEAD=58,SUMM=40,MIN_A=380;
-function note(no){ const n = W.notes[no] || (W.notes[no]={my:'',ans:'',reasons:[],why:'',concept:'',solve:'',again:[],inkF:{}});
+function note(key){ const i=String(key).lastIndexOf('~'), eid=String(key).slice(0,i), no=String(key).slice(i+1);
+  const w=WK[eid]||W; dirty.add(eid);
+  const n = w.notes[no] || (w.notes[no]={my:'',ans:'',reasons:[],why:'',concept:'',solve:'',again:[],inkF:{}});
   if(!n.inkF) n.inkF={};
   if(n.ink){ if(!n.inkF.solve && !(n.solve||'').trim()) n.inkF.solve=n.ink; delete n.ink; } // 예전 방식(칸 전체 펜) 옮기기
   return n; }
-function chosen(){ return exam.items.filter(it=>W.sel[it.no]); }
+function chosen(){
+  if(isCol()) return W.items.map(r=>{ const e=EX[r.examId]; const it=e&&e.items.find(x=>String(x.no)===String(r.no));
+    return it?{...it,key:r.examId+'~'+it.no,label:shortOf(e)+' '+it.no+'번'}:null; }).filter(Boolean);
+  return exam.items.filter(it=>W.sel[it.no]).map(it=>({...it,key:exam.id+'~'+it.no,label:it.no+'번'}));
+}
+// 학생이 쓴 내용이 칸보다 길면, 그 칸만 늘리고 문항 전체를 다음 쪽으로 넘겨요.
+let XTRA={};   // 문항 key → {s:구조 여유, why, concept, solve}
+const xTot=k=>{ const e=XTRA[k]; return e?(e.s||0)+(e.why||0)+(e.concept||0)+(e.solve||0):0; };
 function planPages(){
   // 모든 문항이 같은 높이의 칸(세로: 한 쪽에 2문항, 가로: 한 쪽에 1문항)을 쓰도록 맞춰요.
   const {W:PW,H}=DIM[W.layout]; const colW=(PW-2*PAD_X)/2-10;
@@ -454,26 +546,27 @@ function planPages(){
     if(imgH+16>slot){ const k=(slot-16)/imgH; if(k>=0.7){ imgH*=k; imgW*=k; } } // 조금 긴 문제는 살짝 줄여서 칸에 맞추기
     const capMax=capOf(pages.length===0&&!cur);
     if(imgH+16>capMax){ const k=(capMax-16)/imgH; imgH*=k; imgW*=k; }    // 아주 긴 문제는 한 쪽에 맞추기
-    const rowH=Math.max(slot,Math.ceil(imgH+16));
+    const rowH=Math.min(capOf(false),Math.max(slot,Math.ceil(imgH+16))+xTot(it.key));
     if(!cur || used+rowH>cur.cap+0.5){ cur={rows:[],cap:capOf(pages.length===0)}; pages.push(cur); used=0; }
     cur.rows.push({it,imgW,imgH,rowH}); used+=rowH;
   });
   return pages;
 }
-function tally(){ const t={}; REASONS.forEach(r=>t[r]=0); chosen().forEach(it=>note(it.no).reasons.forEach(r=>t[r]++)); return t; }
+function tally(){ const t={}; REASONS.forEach(r=>t[r]=0); chosen().forEach(it=>note(it.key).reasons.forEach(r=>t[r]++)); return t; }
 function summHTML(blank){ const t=tally(); return `틀린 문항 <b>${chosen().length}개</b> · `+REASONS.map(r=>`<span class="pill">${r} ${blank?'':t[r]}</span>`).join(''); }
 // mode: edit | print | blank
 function pageHTML(p,pi,total,mode){
   const edit=mode==='edit', blank=mode==='blank', pen=W.write==='pen' && !blank;
-  const head=`<div class="phead"><div class="t">오답노트</div><div class="meta">${esc(exam.title)} · ${blank?'학번/이름: ______________':esc(me.sid+' '+me.name)}</div></div>`;
+  const head=`<div class="phead"><div class="t">${isCol()?'📚 '+esc(W.colName):'오답노트'}</div><div class="meta">${isCol()?'모음 오답노트':esc(disp(exam))} · ${blank?'학번/이름: ______________':esc(me.sid+' '+me.name)}</div></div>`;
   const summ=pi===0?`<div class="summary">${summHTML(blank)}</div>`:'';
   const rows=p.rows.map(r=>{
-    const n=note(r.it.no), no=r.it.no, val=k=>blank?'':esc(n[k]);
+    const n=note(r.it.key), no=r.it.key, val=k=>blank?'':esc(n[k]);
     const box=on=>`<span class="box ${on&&!blank?'x':''}"></span>`;
     const ck=(attr,on,label)=> edit?`<label><input type="checkbox" class="hcb" data-no="${no}" ${attr} ${on?'checked':''}>${box(on)}${label}</label>`:`<label>${box(on)}${label}</label>`;
     const inp=k=> edit?`<input data-no="${no}" data-k="${k}" value="${esc(n[k])}">`:`<span class="v">${val(k)}</span>`;
-    const fixed=24+40+22+16*3+6*6+8; const flex=Math.max(90,r.rowH-16-fixed);
-    const wh=Math.round(flex*.2), ch=Math.round(flex*.28), sh=flex-wh-ch;
+    const E=(mode==='blank'?null:XTRA[r.it.key])||{};
+    const fixed=24+40+22+16*3+6*6+8; const flex=Math.max(90,r.rowH-16-fixed-xTot(r.it.key));
+    const wh=Math.round(flex*.2)+(E.why||0), ch=Math.round(flex*.28)+(E.concept||0), sh=flex-Math.round(flex*.2)-Math.round(flex*.28)+(E.solve||0);
     // 칸마다 「글자」 또는 「펜 글씨」 중 하나만 담아요 → 방식을 바꿔도 지워지지 않고 겹치지도 않아요.
     const area=(k,ph,h,grow)=>{
       const hasT=!blank && !!(n[k]||'').trim(), ink=blank?'':n.inkF[k];
@@ -490,7 +583,7 @@ function pageHTML(p,pi,total,mode){
       }
       return `<div class="fld${grow?' grow':''}"><div class="lbl">${{why:'왜 틀렸을까? (한 줄)',concept:'핵심 개념 (내 말로)',solve:'바른 풀이'}[k]}${clr}</div>${inner}</div>`; };
     const ink='';
-    return `<div class="nrow" style="height:${r.rowH}px"><span class="qno">${no}번</span>
+    return `<div class="nrow" data-key="${esc(r.it.key)}" style="height:${r.rowH}px"><span class="qno">${esc(r.it.label)}</span>
       <div class="q"><img src="${r.it.src}" style="width:${r.imgW}px;height:${r.imgH}px"></div>
       <div class="a">
         <div class="ans">내 답 ${inp('my')} <span class="ok">정답</span> ${inp('ans')}</div>
@@ -502,8 +595,27 @@ function pageHTML(p,pi,total,mode){
       </div></div>`; }).join('');
   return `<div class="page ${W.layout}">${head}${summ}${rows}<div class="pfoot">${pi+1} / ${total}</div></div>`;
 }
+// 화면 밖에서 한 번 그려 보고, 넘치는 칸만큼 늘리기 (최대 4번 반복)
+function measureExtras(mode){
+  XTRA={}; if(mode==='blank') return;
+  const holder=document.createElement('div'); holder.style.cssText='position:fixed;left:-99999px;top:0;visibility:hidden'; document.body.appendChild(holder);
+  for(let it=0;it<4;it++){
+    const pages=planPages(); holder.innerHTML=pages.map((p,i)=>pageHTML(p,i,pages.length,mode)).join('');
+    let changed=false;
+    holder.querySelectorAll('.nrow').forEach(row=>{
+      const k=row.dataset.key, e=XTRA[k]||(XTRA[k]={s:0,why:0,concept:0,solve:0});
+      row.querySelectorAll('.fld').forEach(f=>{ const a=f.querySelector('textarea.area,div.area:not(.inkbox)'); if(!a) return;
+        const key=a.dataset.k || (f.querySelector('.lbl').textContent.includes('왜')?'why':f.querySelector('.lbl').textContent.includes('핵심')?'concept':'solve');
+        const over=a.scrollHeight-a.clientHeight; if(over>2){ e[key]+=over+4; changed=true; } });
+      const a=row.querySelector('.a'); const over=a.scrollHeight-a.clientHeight; if(over>2){ e.s+=over+2; changed=true; }
+    });
+    if(!changed) break;
+  }
+  holder.remove();
+}
 function renderPages(){
   syncTools();
+  measureExtras('edit');
   const pages=planPages();
   $('#pages').innerHTML=pages.map((p,i)=>pageHTML(p,i,pages.length,'edit')).join('');
   fitZoom(); $$('#pages canvas.ink').forEach(initInk);
@@ -512,7 +624,14 @@ function fitZoom(){ const avail=Math.min(window.innerWidth,1180)-28, w=DIM[W?.la
 window.addEventListener('resize',()=>{ if($('#scrNote').classList.contains('on')) fitZoom(); });
 $('#pages').addEventListener('click',e=>{ const b=e.target.closest('[data-clr]'); if(!b) return;
   const n=note(b.dataset.clr); delete n.inkF[b.dataset.k]; saveWork(true); const y=window.scrollY; renderPages(); window.scrollTo(0,y); toast('펜 글씨를 지웠어요'); });
-$('#pages').addEventListener('input',e=>{ const el=e.target; if(!el.dataset.no||!el.dataset.k) return; note(el.dataset.no)[el.dataset.k]=el.value; saveWork(true); });
+let relayT=null;
+$('#pages').addEventListener('input',e=>{ const el=e.target; if(!el.dataset.no||!el.dataset.k) return; note(el.dataset.no)[el.dataset.k]=el.value; saveWork(true);
+  if(el.tagName==='TEXTAREA' && el.scrollHeight>el.clientHeight+2){ clearTimeout(relayT); relayT=setTimeout(()=>relayout(el),700); } });
+function relayout(el){ // 칸이 넘치면 다시 배치하고, 쓰던 곳에 커서를 돌려놓아요
+  const no=el.dataset.no, k=el.dataset.k, pos=el.selectionStart, y=window.scrollY;
+  renderPages(); window.scrollTo(0,y);
+  const t=[...$$('#pages textarea')].find(x=>x.dataset.no===no&&x.dataset.k===k);
+  if(t){ t.focus({preventScroll:true}); try{ t.setSelectionRange(pos,pos); }catch(_){} t.scrollIntoView({block:'nearest'}); } }
 $('#pages').addEventListener('change',e=>{
   const el=e.target; if(el.type!=='checkbox') return; const n=note(el.dataset.no);
   if(el.dataset.r){ const r=el.dataset.r; n.reasons=el.checked?[...new Set([...n.reasons,r])]:n.reasons.filter(x=>x!==r); const s=$('#pages .summary'); if(s) s.innerHTML=summHTML(false); }
@@ -545,7 +664,7 @@ function initInk(cv){
 
 /* ---------- PDF ---------- */
 async function makePDF(mode){
-  const pages=planPages(); if(!pages.length){ toast('틀린 문항을 먼저 고르세요'); return; }
+  measureExtras(mode); const pages=planPages(); if(!pages.length){ toast('틀린 문항을 먼저 고르세요'); return; }
   toast('PDF 만드는 중…');
   const holder=document.createElement('div'); holder.style.cssText='position:fixed;left:-99999px;top:0';
   holder.innerHTML=pages.map((p,i)=>pageHTML(p,i,pages.length,mode)).join(''); document.body.appendChild(holder);
@@ -553,8 +672,8 @@ async function makePDF(mode){
   const L=W.layout, pdf=new jspdf.jsPDF({orientation:L,unit:'mm',format:'a4'}); const [pw,ph]=L==='portrait'?[210,297]:[297,210];
   const els=holder.querySelectorAll('.page');
   for(let i=0;i<els.length;i++){ const c=await html2canvas(els[i],{scale:2,backgroundColor:'#fff',logging:false}); if(i) pdf.addPage('a4',L); pdf.addImage(c.toDataURL('image/jpeg',.92),'JPEG',0,0,pw,ph); }
-  holder.remove();
-  await saveFile(fname(`${me.sid}${me.name}_${exam.title}_${mode==='blank'?'빈칸_':''}오답노트.pdf`), pdf.output('blob'));
+  holder.remove(); measureExtras('edit');
+  await saveFile(fname(`${me.sid}${me.name}_${noteTitle()}_${mode==='blank'?'빈칸_':''}오답노트.pdf`), pdf.output('blob'));
 }
 
 /* ============ 선생님 ============ */
@@ -589,32 +708,34 @@ $('#lmMake').onclick=()=>{
 $('#lmCopy').onclick=()=>copyText($('#lmLink').textContent);
 async function renderTExams(){
   let ex=[]; try{ ex=await withBusy('시험지 목록을 불러오는 중…',()=>Exams.list()); }catch(e){}
-  $('#tExamList').innerHTML=ex.map(e=>`<div class="item" style="cursor:default;flex-wrap:wrap"><span class="grow"><span class="t" style="font-size:14px">${esc(e.title)}</span><br><span class="s">${e.count}문항 · ${fmtDate(e.created)}</span></span>
-    <button class="btn" data-ren="${esc(e.id)}" data-title="${esc(e.title)}" data-count="${e.count}" data-first="${e.first}" data-last="${e.last}">이름</button><button class="btn danger" data-delexam="${esc(e.id)}">삭제</button></div>`).join('') || '<div class="hint">아직 등록한 시험지가 없어요.</div>';
+  $('#tExamList').innerHTML=ex.map(e=>`<div class="item" style="cursor:default;flex-wrap:wrap"><span class="grow"><span class="t" style="font-size:14px">${esc(splitTitle(e.title).title)}</span><br><span class="s">짧은 이름: ${esc(splitTitle(e.title).short||'(없음)')} · ${e.count}문항 · ${fmtDate(e.created)}</span></span>
+    <button class="btn" data-ren="${esc(e.id)}" data-title="${esc(splitTitle(e.title).title)}" data-short="${esc(splitTitle(e.title).short)}" data-count="${e.count}" data-first="${e.first}" data-last="${e.last}">이름</button><button class="btn danger" data-delexam="${esc(e.id)}">삭제</button></div>`).join('') || '<div class="hint">아직 등록한 시험지가 없어요.</div>';
   if(!Exams.remote) $('#tExamList').insertAdjacentHTML('afterbegin','<div class="hint" style="color:#8a6200">⚠️ 연습 모드: 이 기기에만 저장돼요</div>');
 }
 $('#tExamList').onclick=async e=>{
   const r=e.target.closest('[data-ren]');
-  if(r){ const d=r.dataset; const t=await askName({title:d.title,count:d.count,first:d.first,last:d.last,rename:true}); if(t==null) return;
+  if(r){ const d=r.dataset; const t=await askName({title:d.title,short:d.short,count:d.count,first:d.first,last:d.last,rename:true}); if(t==null) return;
     try{ await withBusy('이름을 바꾸는 중…',()=>Exams.rename(tToken,d.ren,t)); toast('이름을 바꿨어요'); renderTExams(); }catch(_){} return; }
   const d=e.target.closest('[data-delexam]'); if(!d) return;
   if(!d.dataset.sure){ d.dataset.sure=1; d.textContent='정말?'; return; }
   try{ await withBusy('지우는 중…',()=>Exams.del(tToken,d.dataset.delexam)); toast('시험지를 지웠어요'); }catch(_){} renderTExams(); };
 
 /* ---------- 시험 이름 묻기 창 ---------- */
-function askName({title,count,first,last,rename}){
+function askName({title,short,count,first,last,rename}){
   return new Promise(res=>{
-    const m=$('#nameModal'), inp=$('#nmInput');
+    const m=$('#nameModal'), inp=$('#nmInput'), sh=$('#nmShort');
     $('#nmTitle').textContent= rename?'시험 이름 바꾸기':'시험 이름 정하기';
     $('#nmOk').textContent= rename?'바꾸기':'저장하고 공개하기';
-    $('#nmPrevS').textContent=`${count}문항 (${first}~${last}번)`;
-    const prev=()=>{ $('#nmPrevT').textContent=inp.value.trim()||'(이름을 입력하세요)'; };
-    inp.value=title||''; prev(); $('#nmErr').textContent=''; m.classList.add('on'); setTimeout(()=>{inp.focus();inp.select();},50);
-    inp.oninput=prev;
-    const done=v=>{ m.classList.remove('on'); inp.onkeydown=null; res(v); };
+    const prev=()=>{ $('#nmPrevT').textContent=inp.value.trim()||'(이름을 입력하세요)'; $('#nmPrevS').textContent=`${count}문항 (${first}~${last}번) · 모음 노트 표시: ${(sh.value.trim()||inp.value.trim().slice(0,10))} ${first}번`; };
+    inp.value=(title||'').slice(0,40); sh.value=(short||'').slice(0,10); prev(); $('#nmErr').textContent=''; m.classList.add('on'); setTimeout(()=>{inp.focus();inp.select();},50);
+    inp.oninput=prev; sh.oninput=prev;
+    const done=v=>{ m.classList.remove('on'); inp.onkeydown=sh.onkeydown=null; res(v); };
     $('#nmCancel').onclick=()=>done(null);
-    $('#nmOk').onclick=()=>{ const v=inp.value.trim(); if(!v){ $('#nmErr').textContent='시험 이름을 입력해 주세요'; return; } done(v); };
-    inp.onkeydown=e=>{ if(e.key==='Enter') $('#nmOk').click(); if(e.key==='Escape') done(null); };
+    $('#nmOk').onclick=()=>{ const v=inp.value.trim().replace(SEP,''), w=sh.value.trim().replace(SEP,'');
+      if(!v){ $('#nmErr').textContent='시험 이름을 입력해 주세요'; return; }
+      if(!w){ $('#nmErr').textContent='짧은 이름을 입력해 주세요 (예: 23 3월 모의)'; sh.focus(); return; }
+      done(v+SEP+w); };
+    inp.onkeydown=sh.onkeydown=e=>{ if(e.key==='Enter') $('#nmOk').click(); if(e.key==='Escape') done(null); };
   });
 }
 
@@ -731,7 +852,7 @@ $('#tSave').onclick=async()=>{
     c.width=w; c.height=h; c.getContext('2d').drawImage(T.pages[bx.p].canvas,bx.x0,bx.y0,w,h,0,0,w,h); return {no:startNo()+i,w,h,src:c.toDataURL('image/jpeg',.85)}; });
   try{ await withBusy('저장하는 중… (조금 걸려요)',()=>Exams.save(tToken,{title,items,created:Date.now()})); }catch(e){ return; }
   T.pages=[];T.boxes=[];T.sel=-1; $('#tStart').value='1'; $('#tAuto').disabled=true; renderT();
-  $('#tpages').innerHTML=`<div class="empty">✅ 「${esc(title)}」 공개 완료!<br>학생 화면의 시험지 목록에 바로 나타나요.<br>다음 시험지를 넣으려면 왼쪽에서 PDF를 선택하세요.</div>`;
+  $('#tpages').innerHTML=`<div class="empty">✅ 「${esc(splitTitle(title).title)}」 공개 완료!<br>학생 화면의 시험지 목록에 바로 나타나요.<br>다음 시험지를 넣으려면 왼쪽에서 PDF를 선택하세요.</div>`;
   renderTExams(); toast('학생들에게 공개했어요');
 };
 </script>
