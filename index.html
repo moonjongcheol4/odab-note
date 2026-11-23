@@ -571,7 +571,7 @@ function ensurePdfjs(){ if(!pdfjsReady) pdfjsReady=(async()=>{ const b='https://
   await loadScript(b+'pdf.min.js'); await loadScript(b+'pdf.worker.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc=b+'pdf.worker.min.js'; })(); return pdfjsReady; }
 const T={pages:[],boxes:[],sel:-1}, SCALE=2;
 function runsOf(arr,tol){ const out=[]; let s=-1,last=-1; for(let i=0;i<arr.length;i++){ if(arr[i]){ if(s<0) s=i; last=i; } else if(s>=0&&i-last>tol){ out.push([s,last]); s=-1; } } if(s>=0) out.push([s,last]); return out; }
-function autoSegment(canvas,pageIdx){
+function autoSegment(canvas,pageIdx,marks,numbered){
   const Wd=canvas.width,H=canvas.height,d=canvas.getContext('2d').getImageData(0,0,Wd,H).data, dark=new Uint8Array(Wd*H);
   for(let i=0,j=0;i<d.length;i+=4,j++) dark[j]=(d[i]*.3+d[i+1]*.59+d[i+2]*.11)<160?1:0;
   let bx=-1,best=-1; for(let x=Math.floor(Wd*.4);x<Wd*.6;x++){ let c=0; for(let y=0;y<H;y++) c+=dark[y*Wd+x]; if(c>best){best=c;bx=x;} }
@@ -586,12 +586,27 @@ function autoSegment(canvas,pageIdx){
     const rows=new Uint8Array(hh), lft=new Float32Array(hh).fill(1), rgt=new Float32Array(hh);
     for(let y=0;y<hh;y++) for(let x=0;x<ww;x++) if(cc[x]<=.5*hh && dark[(y0+y)*Wd+x0+x]){ rows[y]=1; if(x/ww<lft[y]) lft[y]=x/ww; if(x/ww>rgt[y]) rgt[y]=x/ww; }
     const lines=runsOf(rows,Math.floor(.003*H)), G=.019*H, qs=[];
-    for(const L of lines){ if(qs.length && L[0]-qs.at(-1).at(-1)[1]<G) qs.at(-1).push(L); else qs.push([L]); }
+    for(const L of lines){ if(qs.length && L[0]-qs.at(-1).at(-1)[1]<G) qs.at(-1).push([...L]); else qs.push([[...L]]); }
     const leftOf=L=>{ let m=1; for(let y=L[0];y<=L[1];y++) m=Math.min(m,lft[y]); return m; };
     const widthOf=L=>{ let a=1,b=0; for(let y=L[0];y<=L[1];y++){ a=Math.min(a,lft[y]); b=Math.max(b,rgt[y]); } return b-a; };
     const segs=[]; for(const q of qs){ while(q.length){ const L=q.at(-1); if(L[1]-L[0]<.025*H && leftOf(L)>.3 && widthOf(L)<.5) q.pop(); else break; } if(q.length) segs.push([q[0][0],q.at(-1)[1]]); }
     const m=[]; for(const s of segs){ if(s[1]-s[0]<.04*H){ if(m.length && s[0]-m.at(-1)[1]<.05*H) m.at(-1)[1]=s[1]; continue; } m.push(s); }
-    const pad=Math.floor(.006*H); for(const s of m) out.push({p:pageIdx,x0,x1,y0:Math.max(0,y0+s[0]-pad),y1:Math.min(H,y0+s[1]+pad)});
+    const pad=Math.floor(.006*H);
+    // ★ 문항 번호(예: "16.")를 PDF 글자에서 찾았으면, 번호 위치를 기준으로 나누기
+    const cm=(marks||[]).filter(k=>k.x>=x0-4&&k.x<x1&&k.x-x0<.25*ww&&k.y>y0-6&&k.y<y1).sort((a,b)=>a.y-b.y);
+    if(cm.length){
+      const keep=new Uint8Array(lines.length);   // 꼬리말("다음 장에 계속" 등)로 빠진 줄은 제외
+      lines.forEach((L,i)=>{ keep[i]=segs.some(s=>L[0]>=s[0]&&L[1]<=s[1])?1:0; });
+      const lineAt=y=>{ const yy=y-y0; let i=lines.findIndex(L=>yy>=L[0]-8&&yy<=L[1]+8); if(i<0) i=lines.findIndex(L=>L[0]>=yy-8); return i; };
+      const starts=cm.map(k=>({k,i:lineAt(k.y)})).filter(o=>o.i>=0);
+      if(starts.length && starts[0].i>0){ // 첫 번호 위에 있는 내용(앞 단에서 이어진 부분)
+        const pre=lines.slice(0,starts[0].i).filter((L,i)=>keep[i]); if(pre.length && pre.at(-1)[1]-pre[0][0]>.04*H) out.push({p:pageIdx,x0,x1,y0:y0+pre[0][0]-pad,y1:y0+pre.at(-1)[1]+pad}); }
+      starts.forEach((o,j)=>{
+        const stop=j+1<starts.length?starts[j+1].i:lines.length; let end=o.i;
+        for(let i=o.i+1;i<stop;i++){ if(!keep[i]) break; if(lines[i][0]-lines[i-1][1]>2.6*G) break; end=i; }
+        out.push({p:pageIdx,x0,x1,no:o.k.no,y0:Math.max(0,y0+lines[o.i][0]-pad),y1:Math.min(H,y0+lines[end][1]+pad)});
+      });
+    } else if(!numbered) for(const s of m) out.push({p:pageIdx,x0,x1,y0:Math.max(0,y0+s[0]-pad),y1:Math.min(H,y0+s[1]+pad)});
   }
   return out;
 }
@@ -610,17 +625,36 @@ $('#tStart').addEventListener('input',renderT);
 window.addEventListener('resize',()=>{ if($('#scrTeacher').classList.contains('on')) renderT(); });
 $('#pdfIn').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value=''; const host=$('#tpages'); host.innerHTML='<div class="empty">PDF를 읽는 중…</div>';
-  try{ await ensurePdfjs(); const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;
+  try{ await ensurePdfjs(); const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer()),cMapUrl:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',cMapPacked:true,standardFontDataUrl:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'}).promise;
     T.fileTitle=f.name.replace(/\.pdf$/i,'');
     host.innerHTML=''; T.pages=[]; T.boxes=[]; T.sel=-1;
     for(let i=1;i<=doc.numPages;i++){ const pg=await doc.getPage(i), vp=pg.getViewport({scale:SCALE});
       const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
       await pg.render({canvasContext:c.getContext('2d',{willReadFrequently:true}),viewport:vp}).promise;
+      let marks=[], texts=[]; try{ const tc=await pg.getTextContent(); const it=tc.items;
+        it.forEach(t=>{ const tx=pdfjsLib.Util.transform(vp.transform,t.transform); if((t.str||'').trim()) texts.push({s:t.str,x:tx[4],y:tx[5]}); });
+        it.forEach((t,k)=>{ const str=(t.str||'').trim(); let mm=str.match(/^(\d{1,2})\s*\.(?!\d)/);
+          if(!mm && /^\d{1,2}$/.test(str) && it[k+1] && /^\s*\./.test(it[k+1].str||'')) mm=[0,str];
+          if(!mm) return; const tx=pdfjsLib.Util.transform(vp.transform,t.transform), fh=Math.hypot(tx[2],tx[3])||12;
+          marks.push({no:+mm[1],x:tx[4],y:tx[5]-fh*.8}); }); }catch(_){}
+      c._marks=marks; c._texts=texts;
       const el=document.createElement('div'); el.className='tpage'; el.appendChild(c); host.appendChild(el); T.pages.push({canvas:c,el}); attachDraw(el,i-1); }
-    autoAll(); $('#tAuto').disabled=false; toast(`문항 ${T.boxes.length}개를 찾았어요. 확인하고 고쳐 주세요.`);
+    $('#tStart').value='1'; autoAll(); $('#tAuto').disabled=false; toast(`문항 ${T.boxes.length}개를 찾았어요. 확인하고 고쳐 주세요.`);
   }catch(err){ console.error(err); host.innerHTML='<div class="empty">PDF를 열지 못했어요.</div>'; }
 };
-function autoAll(){ T.boxes=[]; T.sel=-1; T.pages.forEach((pg,i)=>T.boxes.push(...autoSegment(pg.canvas,i))); renderT(); }
+function pickMarks(){ // 번호가 1씩 늘어나는 가장 긴 줄만 진짜 문항 번호로 인정
+  const all=[]; T.pages.forEach((pg,p)=>(pg.canvas._marks||[]).forEach(k=>all.push({...k,p,col:k.x<pg.canvas.width/2?0:1})));
+  all.sort((a,b)=>a.p-b.p||a.col-b.col||a.y-b.y);
+  let best=[]; for(let i=0;i<all.length;i++){ const ch=[all[i]]; for(let j=i+1;j<all.length;j++) if(all[j].no===ch.at(-1).no+1) ch.push(all[j]); if(ch.length>best.length) best=ch; }
+  return best.length>=3?best:[];
+}
+// 문항이 아닌 안내 상자(확인 사항, 수고하셨습니다 등)는 빼기
+const NOT_Q=/확인\s*사항|답안지의\s*해당란|수고\s*하셨습니다|문제가\s*끝났습니다|다음\s*(장|면)에\s*계속/;
+function isNotice(bx){ const tx=(T.pages[bx.p].canvas._texts||[]).filter(t=>t.x>=bx.x0&&t.x<=bx.x1&&t.y>=bx.y0&&t.y<=bx.y1+4).map(t=>t.s).join('');
+  return tx.length>0 && tx.length<250 && NOT_Q.test(tx); }
+function autoAll(){ T.boxes=[]; T.sel=-1; const mk=pickMarks(); if(mk.length) $('#tStart').value=mk[0].no;
+  T.pages.forEach((pg,i)=>T.boxes.push(...autoSegment(pg.canvas,i,mk.filter(k=>k.p===i),mk.length>0).filter(b=>b.no!=null||!isNotice(b)))); renderT();
+  if(mk.length) toast(`문항 번호 ${mk[0].no}~${mk.at(-1).no}번을 글자로 찾아서 나눴어요`); }
 $('#tAuto').onclick=autoAll;
 $('#tDel').onclick=()=>{ if(T.sel>=0){ T.boxes.splice(T.sel,1); T.sel=-1; renderT(); } };
 $('#tMerge').onclick=()=>{ const i=T.sel,a=T.boxes[i],b=T.boxes[i+1];
