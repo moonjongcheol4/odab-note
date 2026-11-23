@@ -141,7 +141,7 @@ canvas.ink{cursor:crosshair}
     <div class="err" id="loginErr"></div>
     <button class="btn primary big" id="btnLogin" style="width:100%">시작하기</button>
   </div>
-  <div style="text-align:center;margin-top:18px"><button class="btn ghost" id="btnTeacher">🔒 선생님</button></div>
+  <div style="text-align:center;margin-top:18px"><button class="btn ghost" id="btnTeacher">🔒 선생님</button><button class="btn ghost" id="btnMakeLink">🔧 다른 선생님: 내 링크 만들기</button></div>
   </div>
 </section>
 
@@ -214,6 +214,9 @@ canvas.ink{cursor:crosshair}
       </div>
       <p class="hint" id="tStat"></p>
       <div style="margin-top:20px" class="stack">
+        <div class="hint" style="margin-bottom:2px">학생들에게 줄 링크</div>
+        <div class="item" style="cursor:default;padding:8px 10px"><span class="grow s" id="tMyLink" style="word-break:break-all;font-size:12px"></span></div>
+        <button class="btn" id="tCopyLink">📋 학생용 링크 복사</button>
         <button class="btn" id="tChangePw">비밀번호 바꾸기</button>
         <button class="btn ghost" id="tOut">나가기</button>
       </div>
@@ -230,6 +233,18 @@ canvas.ink{cursor:crosshair}
   <div class="err" id="nmErr"></div>
   <div class="row2"><button class="btn" id="nmCancel">취소</button><button class="btn primary" id="nmOk" style="flex:1">저장하고 공개하기</button></div>
 </div></div>
+<div class="modal" id="linkModal"><div class="card mbox">
+  <h2>🔧 내 학생용 링크 만들기</h2>
+  <p class="d">앱스 스크립트를 배포하고 받은 <b>웹 앱 주소</b>(…/exec로 끝나는 주소)를 붙여넣으세요.</p>
+  <div class="field"><label>웹 앱 주소</label><input id="lmIn" placeholder="https://script.google.com/macros/s/…/exec"></div>
+  <div class="err" id="lmErr"></div>
+  <div id="lmOut" style="display:none">
+    <div class="hint">✅ 선생님 전용 링크예요. 이 링크로 들어가서 「🔒 선생님」에서 비밀번호를 먼저 정한 뒤 학생들에게 나눠 주세요.</div>
+    <div class="item" style="cursor:default;margin:8px 0;word-break:break-all;font-size:13px" id="lmLink"></div>
+    <div class="row2"><button class="btn" id="lmCopy">📋 복사</button><a class="btn primary" id="lmGo" href="#" style="text-decoration:none">이 링크로 이동</a></div>
+  </div>
+  <div class="row2" style="margin-top:12px"><button class="btn" id="lmClose">닫기</button><button class="btn primary" id="lmMake" style="flex:1">링크 만들기</button></div>
+</div></div>
 <div class="modal" id="busy"><div class="card mbox" style="text-align:center"><div style="font-size:28px">⏳</div><div id="busyMsg">잠시만요…</div></div></div>
 <div id="toast"></div>
 
@@ -245,7 +260,13 @@ const fmtDate=t=>{const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} $
 /* ============ 저장소 ============
    ★ 앱스 스크립트를 배포한 뒤, 아래 따옴표 안에 웹 앱 주소를 붙여넣으세요.
    비워 두면 "이 기기 안에서만" 동작하는 연습 모드가 돼요. */
-const API_URL = 'https://script.google.com/macros/s/AKfycbyzQfLKkVcJolsNbLNTtGW0cz9Hw5n-Oj4lbgoer8brtJ5lqspYiQdU51hJnDFss4RE/exec';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyzQfLKkVcJolsNbLNTtGW0cz9Hw5n-Oj4lbgoer8brtJ5lqspYiQdU51hJnDFss4RE/exec';
+// 링크 뒤에 ?s=서버코드 가 붙어 있으면 그 선생님의 서버(앱스 스크립트)를 써요.
+const SERVER_CODE = (()=>{ try{ const v=new URLSearchParams(location.search).get('s')||''; return /^[A-Za-z0-9_-]{20,}$/.test(v)?v:''; }catch(e){ return ''; } })();
+const API_URL = SERVER_CODE ? 'https://script.google.com/macros/s/'+SERVER_CODE+'/exec' : DEFAULT_API_URL;
+const PAGE_BASE = location.origin + location.pathname;
+const studentLink = code => PAGE_BASE + (code ? '?s='+code : '');
+async function copyText(t){ try{ await navigator.clipboard.writeText(t); toast('복사했어요'); }catch(e){ toast('복사가 안 되면 링크를 길게 눌러 직접 복사하세요'); } }
 
 // 학생 임시저장(작업)과 연습 모드 시험지는 이 기기의 브라우저(IndexedDB)에 저장
 const Store=(()=>{
@@ -533,7 +554,17 @@ $('#btnTLogin').onclick=async()=>{
 };
 $('#tChangePw').onclick=()=>openTLogin('change');
 $('#tOut').onclick=()=>{ tToken=null; me.sid=''; go('scrLogin'); };
-async function openTeacher(){ await renderTExams(); go('scrTeacher'); ensurePdfjs(); }
+async function openTeacher(){ $('#tMyLink').textContent=studentLink(SERVER_CODE); await renderTExams(); go('scrTeacher'); ensurePdfjs(); }
+$('#tCopyLink').onclick=()=>copyText(studentLink(SERVER_CODE));
+/* ---------- 다른 선생님: 내 링크 만들기 ---------- */
+$('#btnMakeLink').onclick=()=>{ $('#lmIn').value=''; $('#lmErr').textContent=''; $('#lmOut').style.display='none'; $('#linkModal').classList.add('on'); $('#lmIn').focus(); };
+$('#lmClose').onclick=()=>$('#linkModal').classList.remove('on');
+$('#lmMake').onclick=()=>{
+  const m=$('#lmIn').value.trim().match(/\/macros\/s\/([A-Za-z0-9_-]{20,})\/exec/);
+  if(!m){ $('#lmErr').textContent='주소가 맞지 않아요. https://script.google.com/macros/s/…/exec 형태의 주소를 붙여넣으세요.'; $('#lmOut').style.display='none'; return; }
+  const link=studentLink(m[1]); $('#lmErr').textContent=''; $('#lmLink').textContent=link; $('#lmGo').href=link; $('#lmOut').style.display='';
+};
+$('#lmCopy').onclick=()=>copyText($('#lmLink').textContent);
 async function renderTExams(){
   let ex=[]; try{ ex=await withBusy('시험지 목록을 불러오는 중…',()=>Exams.list()); }catch(e){}
   $('#tExamList').innerHTML=ex.map(e=>`<div class="item" style="cursor:default;flex-wrap:wrap"><span class="grow"><span class="t" style="font-size:14px">${esc(e.title)}</span><br><span class="s">${e.count}문항 · ${fmtDate(e.created)}</span></span>
