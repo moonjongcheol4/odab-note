@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>오답노트 만들기 (시제품)</title>
+<title>오답노트 만들기</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -103,6 +103,9 @@ input.hcb{position:absolute;opacity:0;width:0;height:0}
 .fld.grow{flex:1}
 .fld.grow .area{flex:1}
 canvas.ink,img.ink{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none}
+.fld .area.inkbox{position:relative;padding:0}
+.lbl{display:flex;align-items:center;gap:6px}
+.clr{border:1px solid #f1c4c4;background:#fff5f5;color:var(--red);font:inherit;font-size:10.5px;font-weight:500;padding:0 6px;border-radius:8px;cursor:pointer;line-height:15px}
 canvas.ink{cursor:crosshair}
 .again{display:flex;gap:12px;align-items:center;font-size:12px;border-top:1px dotted var(--line);padding-top:5px;height:22px}
 .qno{position:absolute;left:-2px;top:-11px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px}
@@ -434,7 +437,10 @@ function openNote(){ syncSegs(); go('scrNote'); renderPages(); }
 
 const DIM={portrait:{W:794,H:1123},landscape:{W:1123,H:794}};
 const PAD_X=36,PAD_Y=34,HEAD=58,SUMM=40,MIN_A=380;
-function note(no){ return W.notes[no] || (W.notes[no]={my:'',ans:'',reasons:[],why:'',concept:'',solve:'',again:[],ink:''}); }
+function note(no){ const n = W.notes[no] || (W.notes[no]={my:'',ans:'',reasons:[],why:'',concept:'',solve:'',again:[],inkF:{}});
+  if(!n.inkF) n.inkF={};
+  if(n.ink){ if(!n.inkF.solve && !(n.solve||'').trim()) n.inkF.solve=n.ink; delete n.ink; } // 예전 방식(칸 전체 펜) 옮기기
+  return n; }
 function chosen(){ return exam.items.filter(it=>W.sel[it.no]); }
 function planPages(){
   const {W:PW,H}=DIM[W.layout]; const colW=(PW-2*PAD_X)/2-10;
@@ -466,11 +472,22 @@ function pageHTML(p,pi,total,mode){
     const inp=k=> edit?`<input data-no="${no}" data-k="${k}" value="${esc(n[k])}">`:`<span class="v">${val(k)}</span>`;
     const fixed=24+40+22+16*3+6*6+8; const flex=Math.max(90,r.rowH-16-fixed);
     const wh=Math.round(flex*.2), ch=Math.round(flex*.28), sh=flex-wh-ch;
+    // 칸마다 「글자」 또는 「펜 글씨」 중 하나만 담아요 → 방식을 바꿔도 지워지지 않고 겹치지도 않아요.
     const area=(k,ph,h,grow)=>{
-      const inner = (edit&&!pen) ? `<textarea class="area" data-no="${no}" data-k="${k}" placeholder="${ph}" style="height:${h}px">${esc(n[k])}</textarea>`
-                                 : `<div class="area" style="height:${h}px">${pen?'':val(k)}</div>`;
-      return `<div class="fld${grow?' grow':''}"><div class="lbl">${{why:'왜 틀렸을까? (한 줄)',concept:'핵심 개념 (내 말로)',solve:'바른 풀이'}[k]}</div>${inner}</div>`; };
-    const ink = pen ? (edit ? `<canvas class="ink" data-no="${no}"></canvas>` : (n.ink?`<img class="ink" src="${n.ink}">`:'')) : '';
+      const hasT=!blank && !!(n[k]||'').trim(), ink=blank?'':n.inkF[k];
+      let inner, clr='';
+      if(edit){
+        if(hasT || (!ink && !pen)) inner=`<textarea class="area" data-no="${no}" data-k="${k}" placeholder="${pen&&hasT?'':ph}" style="height:${h}px">${esc(n[k])}</textarea>`;
+        else if(pen) inner=`<div class="area inkbox" style="height:${h}px"><canvas class="ink" data-no="${no}" data-k="${k}"></canvas></div>`;
+        else inner=`<div class="area inkbox" style="height:${h}px"><img class="ink" src="${ink}"></div>`;
+        if(ink && !hasT) clr=`<button class="clr" data-clr="${no}" data-k="${k}">펜 글씨 지우기</button>`;
+      } else {
+        inner = hasT ? `<div class="area" style="height:${h}px">${val(k)}</div>`
+              : ink ? `<div class="area inkbox" style="height:${h}px"><img class="ink" src="${ink}"></div>`
+              : `<div class="area" style="height:${h}px"></div>`;
+      }
+      return `<div class="fld${grow?' grow':''}"><div class="lbl">${{why:'왜 틀렸을까? (한 줄)',concept:'핵심 개념 (내 말로)',solve:'바른 풀이'}[k]}${clr}</div>${inner}</div>`; };
+    const ink='';
     return `<div class="nrow" style="height:${r.rowH}px"><span class="qno">${no}번</span>
       <div class="q"><img src="${r.it.src}" style="width:${r.imgW}px;height:${r.imgH}px"></div>
       <div class="a">
@@ -491,6 +508,8 @@ function renderPages(){
 }
 function fitZoom(){ const avail=Math.min(window.innerWidth,1180)-28, w=DIM[W?.layout||'portrait'].W; const z=Math.min(1,avail/w); $$('#pages .page').forEach(p=>p.style.zoom=z); }
 window.addEventListener('resize',()=>{ if($('#scrNote').classList.contains('on')) fitZoom(); });
+$('#pages').addEventListener('click',e=>{ const b=e.target.closest('[data-clr]'); if(!b) return;
+  const n=note(b.dataset.clr); delete n.inkF[b.dataset.k]; saveWork(true); const y=window.scrollY; renderPages(); window.scrollTo(0,y); toast('펜 글씨를 지웠어요'); });
 $('#pages').addEventListener('input',e=>{ const el=e.target; if(!el.dataset.no||!el.dataset.k) return; note(el.dataset.no)[el.dataset.k]=el.value; saveWork(true); });
 $('#pages').addEventListener('change',e=>{
   const el=e.target; if(el.type!=='checkbox') return; const n=note(el.dataset.no);
@@ -501,10 +520,10 @@ $('#pages').addEventListener('change',e=>{
 
 /* ---------- 펜으로 쓰기 ---------- */
 function initInk(cv){
-  const no=cv.dataset.no, n=note(no);
+  const no=cv.dataset.no, k=cv.dataset.k, n=note(no);
   cv.width=Math.round(cv.clientWidth*2)||600; cv.height=Math.round(cv.clientHeight*2)||600;
   const ctx=cv.getContext('2d'); ctx.lineCap='round'; ctx.lineJoin='round';
-  if(n.ink){ const im=new Image(); im.onload=()=>ctx.drawImage(im,0,0,cv.width,cv.height); im.src=n.ink; }
+  if(n.inkF[k]){ const im=new Image(); im.onload=()=>ctx.drawImage(im,0,0,cv.width,cv.height); im.src=n.inkF[k]; }
   let drawing=false, last=null;
   const pos=e=>{ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width*cv.width, y:(e.clientY-r.top)/r.height*cv.height}; };
   cv.addEventListener('pointerdown',e=>{
@@ -517,7 +536,8 @@ function initInk(cv){
     ctx.strokeStyle='#1d3557'; ctx.lineWidth= tool==='eraser'? 28 : 2.4*(cv.width/(cv.clientWidth||cv.width/2))*(e.pressure>0&&e.pointerType==='pen'?0.6+e.pressure:1);
     ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last=p;
   });
-  const end=()=>{ if(!drawing) return; drawing=false; n.ink=cv.toDataURL('image/png'); saveWork(true); };
+  const end=()=>{ if(!drawing) return; drawing=false; const had=!!n.inkF[k]; n.inkF[k]=cv.toDataURL('image/png'); saveWork(true);
+    if(!had){ const l=cv.closest('.fld').querySelector('.lbl'); if(l && !l.querySelector('.clr')) l.insertAdjacentHTML('beforeend',`<button class="clr" data-clr="${no}" data-k="${k}">펜 글씨 지우기</button>`); } };
   cv.addEventListener('pointerup',end); cv.addEventListener('pointercancel',end);
 }
 
