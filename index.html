@@ -443,19 +443,21 @@ function note(no){ const n = W.notes[no] || (W.notes[no]={my:'',ans:'',reasons:[
   return n; }
 function chosen(){ return exam.items.filter(it=>W.sel[it.no]); }
 function planPages(){
+  // 모든 문항이 같은 높이의 칸(세로: 한 쪽에 2문항, 가로: 한 쪽에 1문항)을 쓰도록 맞춰요.
   const {W:PW,H}=DIM[W.layout]; const colW=(PW-2*PAD_X)/2-10;
+  const capOf=first=>H-2*PAD_Y-HEAD-(first?SUMM:0)-24;
+  const perPage=W.layout==='portrait'?2:1;
+  const slot=Math.floor(capOf(true)/perPage);           // 첫 쪽(요약 줄 있음) 기준으로 모든 쪽 같은 높이
   const pages=[]; let cur=null, used=0;
   chosen().forEach(it=>{
-    const top=HEAD+(pages.length===0&&!cur?SUMM:0); const cap=H-2*PAD_Y-top-24;
-    let imgH=it.h*colW/it.w, imgW=colW;
-    if(imgH+16>cap){ imgH=cap-16; imgW=imgH*it.w/it.h; }
-    let rowH=Math.max(imgH+16,Math.min(MIN_A,cap));
-    if(cur && used+rowH>cur.cap){ const room=cur.cap-used;
-      if(room>=MIN_A && room>=0.75*(imgH+16)){ const k=Math.min(1,(room-16)/imgH); imgH*=k; imgW*=k; rowH=room; } }
-    if(!cur || used+rowH>cur.cap+0.5){ cur={rows:[],cap:H-2*PAD_Y-HEAD-(pages.length===0?SUMM:0)-24}; pages.push(cur); used=0; }
+    let imgW=colW, imgH=it.h*colW/it.w;
+    if(imgH+16>slot){ const k=(slot-16)/imgH; if(k>=0.7){ imgH*=k; imgW*=k; } } // 조금 긴 문제는 살짝 줄여서 칸에 맞추기
+    const capMax=capOf(pages.length===0&&!cur);
+    if(imgH+16>capMax){ const k=(capMax-16)/imgH; imgH*=k; imgW*=k; }    // 아주 긴 문제는 한 쪽에 맞추기
+    const rowH=Math.max(slot,Math.ceil(imgH+16));
+    if(!cur || used+rowH>cur.cap+0.5){ cur={rows:[],cap:capOf(pages.length===0)}; pages.push(cur); used=0; }
     cur.rows.push({it,imgW,imgH,rowH}); used+=rowH;
   });
-  pages.forEach(p=>{ const tot=p.rows.reduce((a,r)=>a+r.rowH,0); const extra=Math.max(0,p.cap-tot); p.rows.forEach(r=>r.rowH+=extra/p.rows.length); });
   return pages;
 }
 function tally(){ const t={}; REASONS.forEach(r=>t[r]=0); chosen().forEach(it=>note(it.no).reasons.forEach(r=>t[r]++)); return t; }
